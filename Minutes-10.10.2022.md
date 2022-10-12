@@ -6,6 +6,7 @@ Dan Towler
 Tom Robinson
 
 ## Topics Discussed
+Weekly Meetings  
 Design of presentation  
 Design of Gantt chart  
 Direction of project planning and research  
@@ -19,6 +20,7 @@ Github repo to store minutes and code
 Gantt chart to be created after further research and completion of presentation  
 
 ## Actions
+Weekly supervisor meetings scheduled  
 New Github repo created  
 Presentation file and contents created  
 Tom to create minutes template  

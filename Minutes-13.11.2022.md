@@ -27,3 +27,4 @@ Low risk computational project, take frequent breaks
 Continue producing presentation  
 Direct research towards existing amazon SEO and new potential performance metrics  
 Contact apollo about using customer sales data from API  
+Complete, sign of and submit risk assessment  

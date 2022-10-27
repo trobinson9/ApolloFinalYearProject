@@ -1,29 +1,26 @@
 # Meeting Minutes
-## Date: 06/10/22
+## Date: 20/10/22
 
 ## Attendees
 Oliver Vogt  
+Stefano Giani  
+Luke Chin  
 Dan Towler  
 Tom Robinson
 
 ## Topics Discussed
-Scope of project  
-Weekly meeting plan  
-### Outputs that need to be produced
-new github  
-minutes  
-presentation  
-reasearch
-project plan, initial project report, project outline report, final project report
+Placement and research work to date presented and discussed  
+Amazon algorithm details  
+Machine leanring tools  
+Apollo to try and provide sales data  
 
 ## Details
-Github for shared code and minutes   
-Presentation on 20/10/2022 to outline work done so far and direction of project   
-Make notes through quotations of papers when reading   
-LSTM networks recommended  
+Amazon A9 algorithm, for ordering listings by keyword search  
+Difficult to distinguish success due to advertisment spend  
+Google collab and Jupyter notebooks best tools to use
+Apollo able to get data on conversion rates and sales for their clients
 
 ## Actions
-Create github and minutes template  
-Schedule weekly meetings  
-Create presentation  
-Continue research  
+Luke to look into data Apollo can provide
+Get familiar with Google collab and Jupyter notebooks
+Continue research into Amazon and AI tools

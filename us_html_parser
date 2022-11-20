@@ -1,0 +1,418 @@
+# Import libraries
+import re
+from datetime import datetime, date
+
+
+class Listing:
+
+    def __init__(self, soup, url, page, pages, salesdata):
+
+        class Data:
+
+            def __init__(self, name, locations, sub_location, sub_location_find_all, sub_location_class):
+
+                self.name = name
+                self.locations = locations
+                self.sub_location = sub_location
+                self.sub_location_find_all = sub_location_find_all
+                self.sub_location_class = sub_location_class
+
+            def get(self):
+
+                for location in self.locations:
+                    if soup.find(id=location) is not None:
+                        y = self.locations.index(location)
+                        if self.sub_location[y] is None:
+                            return soup.find(id=location)
+                        if self.sub_location_find_all[y]:
+                            if self.sub_location_class[y] is not None:
+                                return soup.find(id=location).find_all(self.sub_location[y],
+                                                                       class_=self.sub_location_class[y])
+                            return soup.find(id=location).find_all(self.sub_location[y])
+                        if self.sub_location_class[y] is not None:
+                            return soup.find(id=location).find(self.sub_location[y],
+                                                               class_=self.sub_location_class[y])
+                        return soup.find(id=location).find(self.sub_location[y])
+
+            def get_i(self, index):
+                """allows specification of id"""
+                if self.sub_location[index] is None:
+                    return soup.find(id=self.locations[index])
+                if self.sub_location_find_all[index]:
+                    if self.sub_location_class[index] is not None:
+                        return soup.find(id=self.locations[index]).find_all(self.sub_location[index],
+                                                                            class_=self.sub_location_class[index])
+                    return soup.find(id=self.locations[index]).find_all(self.sub_location[index])
+                if self.sub_location_class[index] is not None:
+                    return (soup.find(id=self.locations[index])).find(self.sub_location[index],
+                                                                      class_=self.sub_location_class[index])
+                return (soup.find(id=self.locations[index])).find(self.sub_location[index])
+
+            def x(self):
+                for location in self.locations:
+                    if soup.find(id=location) is not None:
+                        return self.locations.index(location)
+
+            def len_loc(self):
+                return len(self.locations)
+
+            @staticmethod
+            def handle(input_):
+                try:
+                    return input_
+                except:
+                    if input_ is not price_():
+                        if input is not ranks_(_pd):
+                            return "Data not found"
+                    else:
+                        return ["Data not found", "Data not found"]
+
+            # checks data is complete, returns html if not
+            @staticmethod
+            def isdata(dat_list, html_location):
+                if "Data not found" not in dat_list:
+                    return [True, None]
+                return [False, html_location]
+
+            # gets text from html and removes whitespace from borders
+            @staticmethod
+            def clean(this):
+                return this.text.strip()
+
+            # removes excess whitespace
+            @staticmethod
+            def clean_spaces(this):
+                return re.sub(r'\s+', ' ', this)
+
+            # cleans double full-stops
+            @staticmethod
+            def clean_stops(this):
+                return re.sub(r'\.\.+', '.', this)
+
+            # gets each text source and puts into a list
+            @staticmethod
+            def split_text(this):
+                return re.sub(r'\s\s+', ';', this.text).split(';')
+
+            # returns the nth index after that in this
+            @staticmethod
+            def next_ind(this, that, a):
+                return this[this.index(that) + a]
+
+            # removes colons and makes all lower case to avoid case errors
+            @staticmethod
+            def clean_split(this):
+                news = re.sub(r'\s\s+', ';', this)
+                new = re.sub(":", "", news)
+                return list(filter(None, list(new.lower().split(";"))))
+
+            # removes ascii and makes all lower case to avoid case errors
+            @staticmethod
+            def remove_ascii(this):
+                return this.text.encode("ascii", "ignore").decode()
+
+        # get the department
+        def department_():
+            return Data.clean(Data("department", ["searchDropdownBox"], [None],
+                                   [False], [None]).get().find(selected="selected"))
+
+        # get the list of sub-departments
+        def sub_dep_list_():
+            sub_dep_list = []
+            try:
+                for sub in Data("sub_dep_list", ["wayfinding-breadcrumbs_feature_div"],
+                                ["span"], [True], ["a-list-item"]).get():
+                    if len(Data.clean(sub)) > 1:
+                        sub_dep_list.append(Data.clean(sub))
+            except TypeError:
+                sub_dep_list = None
+            return sub_dep_list
+
+        # get product title
+        def product_title_():
+            return Data.clean(Data("product_title", ["productTitle"], [None], [False], [None]).get())
+
+        # get bullet-pointed feature list
+        def features_():
+            try:
+                features = []
+                feature_bullets = Data("features", ["feature-bullets"], ["span"], [True], ["a-list-item"]).get()
+                for feature in feature_bullets:
+                    features.append(Data.clean(feature))
+            except AttributeError:
+                features = []
+            return features
+
+        # get product_description
+        def descript_():
+            descript = ""
+            prod_desc = Data("descript", ["productDescription", "aplus", "visual-rich-product-description"],
+                             [None, "p", None], [False, True, False], [None, None, None])
+            product_description = prod_desc.get()
+            x = prod_desc.x()
+            try:
+                if x == 1:
+                    for prod in product_description:
+                        if len(Data.clean(prod)) > 0:
+                            descript += Data.clean_stops(str(Data.clean_spaces(Data.clean(prod))))
+                elif x == 0:
+                    try:
+                        for desc in product_description.find_all("h3"):
+                            if "description" in desc.lower():
+                                descript = Data.clean_spaces(re.sub(r'<.*?>', ' ', str(desc))).strip()
+                        if descript.lower == "product description":
+                            for desc in Data.split_text(product_description):
+                                if "description" in desc.lower():
+                                    descript = Data.next_ind(Data.split_text(product_description), desc, 1)
+                    except:
+                        pass
+                    if descript == "":
+                        descript = Data.clean_spaces(re.sub(r'<.*?>', ' ', str(product_description))).strip()
+                elif x == 2:
+                    for desc in Data.split_text(product_description):
+                        if "description" in desc.lower():
+                            descript = Data.next_ind(Data.split_text(product_description), desc, 1)
+            except AttributeError:
+                descript = None
+            except TypeError:
+                descript = None
+            return descript
+
+        # get image URLs
+        def urls_():
+            images = Data("images", ["altImages"], ["img"], [True], [None]).get()
+            urls = []
+            for image in images:
+                string = image["src"]
+                if "overlay" not in string:
+                    if "gif" not in string:
+                        real_url = re.sub("_.*jpg", "jpg", string)
+                        urls.append(real_url)
+            return urls
+
+        # get number of images
+        def image_no_(urls):
+            return len(urls)
+
+        # get number of videos
+        def n_():
+            try:
+                b = Data.clean_spaces(Data.clean(Data("n_vids", ["altImages"], [None], [False], [None]).get()))[0]
+                if b.lower() == "v":
+                    n = 1
+                else:
+                    n = int(b)
+            except IndexError:
+                n = 0
+            return n
+
+        # get lengths of videos
+        def vid_lengths_(n):
+            if n != 0:
+                vid_lengths = []
+                pods = re.findall(r"durationSeconds\":\d+", str(soup.find_all("script")))
+                i = 0
+                if len(pods) != 0:
+                    while i < n:
+                        vid_lengths.append(int(str(pods[i])[17:]))
+                        i += 1
+                        continue
+                else:
+                    vid_lengths = "Data not found"
+            else:
+                vid_lengths = None
+            return vid_lengths
+
+        # get prices and sort to get deal price
+        def price_():
+            prices = Data("price", ["apex_desktop"], ["span"], [True], ["a-offscreen", None])
+            try:
+                price = [float(Data.clean((prices.get())[0])[1:])]
+            except:
+                return "no price"
+            try:
+                c = True
+                for pri in prices.get_i(-1):
+                    if "/" in Data.clean(pri):
+                        c = False
+                        break
+                    else:
+                        c = True
+                if c:
+                    price.append(float(Data.clean(prices.get()[1])[1:]))
+            except IndexError:
+                pass
+            price.sort(reverse=True)
+            if len(price) == 1:
+                price.append(None)
+            return price
+
+        # get product details
+        def pd_():
+            prod_dets = Data("product details",
+                             ["prodDetails", "productDetails_db_sections", "detailBulletsWrapper_feature_div"],
+                             [None, None, None], [False, False, False], [None, None, None])
+            pd_list = Data.clean_split(Data.remove_ascii(prod_dets.get()))
+            pd = []
+            for i in pd_list:
+                pd.append(i.lower())
+            return pd
+
+        # get ASIN
+        def asin_(pd, td):
+            if td:
+                if "ASIN" in td:
+                    return td["ASIN"]
+            return Data.next_ind(pd, "asin", 1).upper()
+
+        # get rating
+        def rating_(pd):
+            if "customer reviews" in pd:
+                return float(Data.next_ind(pd, "customer reviews", 1).split()[0])
+            return None
+
+        # get best sellers ranks
+        def ranks_(pd):
+            if "best sellers rank" in pd:
+                if Data.next_ind(pd, "best sellers rank", 2)[0].isnumeric():
+                    general_rank = (re.sub(r"\(.*\)", "", str(Data.next_ind(pd, "best sellers rank", 1))).strip())
+                    specific_rank = (Data.next_ind(pd, "best sellers rank", 2).strip())
+                else:
+                    specific_rank = (Data.next_ind(pd, "best sellers rank", 1).strip())
+                    general_rank = None
+                ranks = [specific_rank, general_rank]
+            else:
+                ranks = [None, None]
+            return ranks
+
+        # get dates
+        def available_since_(pd):
+            try:
+                avb_since = re.sub(",", "", str(Data.next_ind(pd, "release date", 1))).strip().split()
+                avb_since_date = date(int(avb_since[2]), datetime.strptime((avb_since[0])[:3], '%b').month,
+                                      int(avb_since[1]))
+                return str(avb_since_date)
+            except:
+                return "Unspecified"
+
+        # get listing age
+        def listing_age_(pd):
+            try:
+                avb_since = re.sub(",", "", str(Data.next_ind(pd, "release date", 1))).strip().split()
+                avb_since_date = date(int(avb_since[2]), datetime.strptime((avb_since[0])[:3], '%b').month,
+                                      int(avb_since[1]))
+                return str(date.today() - avb_since_date).split()[0] + " days"
+            except:
+                return "Unspecified"
+
+        # get today's date
+        def today_():
+            return (datetime.now()).strftime("%d/%m/%Y %H:%M:%S")
+
+        # get ratings
+        def rating_count_(pd):
+            rating_count = 0
+            for rescomp in list(pd):
+                if "ratings" in rescomp:
+                    rating_count = int(re.sub(',', '', rescomp.split()[0]))
+            return rating_count
+
+        # get technical table
+        def technical_details_table_():
+            tech_head = Data("technical_head", ["productDetails_techSpec_section_1", "productOverview_feature_div"],
+                             ["th", "th"], [True, True], [None, None])
+            tech_det = Data("technical_detail", ["productDetails_techSpec_section_1", "productOverview_feature_div"],
+                            ["td", "td"], [True, True], [None, None])
+            td, th, technical_details_table = [], [], []
+            try:
+                i = 0
+                while i < (tech_head.len_loc()):
+                    try:
+                        for t_head in tech_head.get_i(i):
+                            th.append(Data.clean(t_head))
+                        for t_det in tech_det.get_i(i):
+                            td.append(str(Data.remove_ascii(t_det)).strip())
+                        technical_details_table = dict(zip(th, td))
+                        break
+                    except TypeError:
+                        continue
+            except AttributeError:
+                i = 1
+                # while i < (tech_head.len_loc()):
+                try:
+                    for t_head in tech_head.get_i(i):
+                        th.append(Data.clean(t_head))
+                    for t_det in tech_det.get_i(i):
+                        td.append(str(Data.remove_ascii(t_det)).strip())
+                    # print(td)
+                    # td_ =
+                    th_ = {}
+                    for i in range(len(td)):
+                        if i % 2 == 0:
+                            th_[td[i]] = td[i + 1]
+                    technical_details_table = th_
+                except:
+                    pass
+            return technical_details_table
+
+        # get product name from URL, if not in url then from first 4 words of Title
+        def product_name_(product_title):
+            product_name = ' '.join(re.sub(',', '', product_title).split()[:4])
+            return product_name
+
+        # pre-parse key responses
+        _pd = Data.handle(pd_())
+        _td = Data.handle(technical_details_table_())
+        _n = Data.handle(n_())
+        _urls = Data.handle(urls_())
+        _title = Data.handle(product_title_())
+
+        # define characteristic 'data' of class 'Listing'
+        self.data = {
+            'ASIN': Data.handle(asin_(_pd, _td)),
+            'Product Name': Data.handle(product_name_(_title)),
+            'Sub-departments': Data.handle(sub_dep_list_()),
+            'Copy-writing data': {
+                'Features': Data.handle(features_()),
+                'Product description': Data.handle(descript_()),
+            },
+            'Landing page data': {
+                'Title': _title,
+                'Images': {
+                    'Number of images': Data.handle(image_no_(_urls)),
+                    'Urls': _urls,
+                },
+                'Videos': {
+                    'Number of videos': _n,
+                    'Video lengths (s)': Data.handle(vid_lengths_(_n)),
+                },
+                'Price information': {
+                    'RRP': Data.handle(price_())[0],
+                    'Deal price': Data.handle(price_())[1],
+                },
+                'Ratings & reviews': {
+                    'Rating': Data.handle(rating_(_pd)),
+                    'Rating count': Data.handle(rating_count_(_pd)),
+                },
+                'Best seller rank': {
+                    'Department rank': Data.handle(ranks_(_pd)[0]),
+                    'Sub-department rank': Data.handle(ranks_(_pd)[1]),
+                },
+                'Available since': Data.handle(available_since_(_pd)),
+                'Listing age': Data.handle(listing_age_(_pd)),
+                'Technical details': _td,
+            },
+            'Source data': {
+                'Date sourced': Data.handle(today_()),
+                'URL': url,
+                'Department': Data.handle(department_()),
+                'Page number': str(page)+"/"+str(pages),
+            },
+            'Sales Data': salesdata
+        }
+
+    # uploads document to mongodb
+    def mongodb_upload(self, db):
+
+        department = self.data['Source data']['Department']
+        db[department].insert_one(self.data)

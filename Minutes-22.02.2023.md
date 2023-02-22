@@ -1,5 +1,5 @@
 # Meeting Minutes
-## Date: 01/12/22
+## Date: 22/02/23
 
 ## Attendees
 Oliver Vogt  
@@ -12,7 +12,7 @@ Image analysis
 
 ## Details
 Current use of CLIP from DALL.E model to compare similarity between images and text (eg Title)  
-Able to use model on data, still need to run on full dataset and analyse results  
+Able to use model on data, still need to run on full dataset and analyse results (look for correlations)  
 Suggestion to also provide output text of Image to compare with text - more useful for user  
 
 ## Actions

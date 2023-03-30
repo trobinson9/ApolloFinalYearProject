@@ -1,0 +1,285 @@
+! pip install shap
+
+# Commented out IPython magic to ensure Python compatibility.
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import matplotlib.pyplot as plt
+import lightgbm as lgb
+import shap
+import math
+# %matplotlib inline
+
+from pprint import pprint
+from IPython.display import display 
+from sklearn import model_selection
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix
+# from sklearn.metrics import plot_confusion_matrix
+from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, recall_score, roc_auc_score, precision_score, log_loss
+
+from google.colab import drive
+drive.mount('/content/drive/')
+
+data = pd.read_csv('/content/drive/MyDrive/Project Data/pre-processed_data.csv').drop(columns=['Unnamed: 0', 'Title', 'Available Since', 'Source Date', 'Video Lengths', 'Sub-Department Rank'])
+
+def num_string_to_list(num_str):
+  return [float(num) for num in num_str.split('[')[1].split(']')[0].split(', ')]
+
+sims_data = pd.read_csv('/content/drive/MyDrive/Project Data/high_corr_promts_similarities.csv').drop(columns = ["Unnamed: 0"])
+for column in sims_data.columns:
+  if column != 'ASIN':
+    sims_data[column] = sims_data[column].apply(num_string_to_list)
+
+def get_img_similarities(row, column):
+  similarities = []
+  for img in row['Images']:
+    similarity = np.dot(row[column],img)/(np.linalg.norm(row[column])*np.linalg.norm(img))
+    similarities.append(similarity)
+  return similarities
+
+img_data = pd.read_csv('/content/drive/MyDrive/Project Data/image_text_encodings_with_ranks.csv')
+
+img_data.drop_duplicates(subset=["ASIN"])
+
+sims_data.drop_duplicates(subset=["ASIN"])
+
+def tensor_string_to_list(csv_str):
+  num_tensors = len(csv_str.split('tensor')) - 1
+  if num_tensors == 1:
+    stripped_str = csv_str.split('tensor([')[1].split('])')[0].replace('\n', "")
+    float_list = [float(num_str) for num_str in stripped_str.split(',')]
+    return float_list
+  elif num_tensors < 1:
+    print('error in string')
+    return np.NaN
+  elif num_tensors > 1:
+    tensor_list = csv_str.split('tensor([')
+    float_list_list = []
+    for i in range(num_tensors):
+      stripped_str = tensor_list[i+1].replace(']), ', '').replace('\n', '').replace('])]', '')
+      float_list = [float(num_str) for num_str in stripped_str.split(',')]
+      float_list_list.append(float_list)
+    return float_list_list
+
+img_data = img_data.dropna()
+img_data['Title'] = img_data['Title'].apply(tensor_string_to_list)
+img_data['Name'] = img_data['Name'].apply(tensor_string_to_list)
+img_data['Unbranded Title'] = img_data['Unbranded Title'].apply(tensor_string_to_list)
+img_data['Unbranded Name'] = img_data['Unbranded Name'].apply(tensor_string_to_list)
+img_data['Images'] = img_data['Images'].apply(tensor_string_to_list)
+
+img_data['Title'] = img_data.apply(lambda x: get_img_similarities(row=x, column='Title'), axis=1)
+img_data['Name'] = img_data.apply(lambda x: get_img_similarities(row=x, column='Name'), axis=1)
+img_data['Unbranded Title'] = img_data.apply(lambda x: get_img_similarities(row=x, column='Unbranded Title'), axis=1)
+img_data['Unbranded Name'] = img_data.apply(lambda x: get_img_similarities(row=x, column='Unbranded Name'), axis=1)
+img_data = img_data.drop(columns=['Images'])
+
+home_data = data[data['Department'].isin(['home & kitchen'])].reset_index().drop(columns=['index', 'Department']) # , np.NaN]
+
+comp_home_data = home_data.merge(img_data, how='inner', on='Department Rank').drop(columns=['Unnamed: 0']).merge(sims_data[['ASIN', 'An effective advertisement', 'An image showing extra detail', 'A best selling amazon image', "Does the image accurately reflect the product's texture and feel?", 'A professional image']].drop_duplicates(subset='ASIN'), how='inner', on='ASIN').drop(columns = ['ASIN', 'Department', 'Title', 'Name', 'Unbranded Name']) #  'Unbranded Title', 
+for col in comp_home_data.columns:
+  if col not in home_data.columns:
+    print(col)
+    comp_home_data[col] = comp_home_data[col].apply(np.max)
+# comp_home_data = comp_home_data.loc[comp_home_data[comp_home_data['Title'] > 0.001].index].reset_index(drop=True)
+
+# quartiles = data[['Department Rank']].quantile(np.arange(0, 1.1, 0.1)) # ,'Sub-Department Rank'
+# quartiles['Dep Rank/Sub Rank'] = quartiles.apply(lambda x: x['Department Rank']/x['Sub-Department Rank'], axis=1)
+
+def catagorise_dep_rank(dep_rank, boundaries):
+  if type(dep_rank) == str:
+    return dep_rank
+
+  if dep_rank < boundaries[0]:
+    return 0  # 'top ' + str(int(boundaries[0]/1000)) + 'k'
+
+  for i in range(len(boundaries)-1):
+    if boundaries[i]-1 < dep_rank < boundaries[i+1]:
+      return i+1  # str(int(boundaries[i]/1000)) + "k to " + str(int(boundaries[i+1]/1000)) + 'k'
+
+  if dep_rank > boundaries[len(boundaries)-1]:
+    return len(boundaries)  # 'bottom ' + str(int(boundaries[len(boundaries)-1]/1000)) +'k'
+  else:
+    return dep_rank
+
+bounds = [10**4, 10**5, 4*10**5, 10*10**5, 18*10**5]
+comp_home_data['Department Rank'] = comp_home_data['Department Rank'].fillna( len(bounds)+1 ).apply(lambda x: catagorise_dep_rank(dep_rank=x, boundaries=bounds))
+
+#%% MultiColumnLabelEncoder
+# Code snipet found on Stack Exchange, kaggle
+# https://www.kaggle.com/code/josephchan524/hranalytics-lightgbm-classifier-auc-80
+# https://stackoverflow.com/questions/24458645/label-encoding-across-multiple-columns-in-scikit-learn
+# from sklearn.preprocessing import LabelEncoder
+
+class MultiColumnLabelEncoder:
+    def __init__(self,columns = None):
+        self.columns = columns # array of column names to encode
+
+    def fit(self,X,y=None):
+        return self # not relevant here
+
+    def transform(self,X):
+        '''
+        Transforms columns of X specified in self.columns using
+        LabelEncoder(). If no columns specified, transforms all
+        columns in X.
+        '''
+        output = X.copy()
+        if self.columns is not None:
+            for col in self.columns:
+                print(col)
+                # convert float NaN --> string NaN
+                output[col] = output[col].fillna('NaN')
+                output[col] = LabelEncoder().fit_transform(output[col])
+        else:
+            for colname,col in output.iteritems():
+                output[colname] = LabelEncoder().fit_transform(col)
+        return output
+
+    def fit_transform(self,X,y=None):
+        return self.fit(X,y).transform(X)
+
+# store the catagorical features names as a list      
+cat_features = ['n Images', 'n Videos', 'Sub-Department'] #  'Department Rank', 
+print(cat_features)
+# # use MultiColumnLabelEncoder to apply LabelEncoding on cat_features 
+# # uses NaN as a value , no imputation will be used for missing data
+home_data_tranform = MultiColumnLabelEncoder(columns = cat_features).fit_transform(comp_home_data)  # need to switch to ohe
+# cat_features.remove('Department Rank')
+
+home_data_tranform = home_data_tranform.drop(columns = ['Listing Age', 'n Ratings', 'Rating']) # 'An effective advertisement' 'An image showing extra detail', 'A best selling amazon image', "Does the image accurately reflect the product's texture and feel?", 'A professional image'
+home_data_tranform = home_data_tranform.drop(columns = ['An image showing extra detail', 'A best selling amazon image', "Does the image accurately reflect the product's texture and feel?", 'A professional image'])
+# home_data_tranform = home_data_tranform.drop(columns = ['An effective advertisement'])
+# home_data_tranform = home_data_tranform.drop(home_data_tranform.loc[home_data_tranform['Department Rank'] == 0].index)
+# home_data_tranform['Department Rank'] = home_data_tranform['Department Rank'].apply(math.log)
+home_data_tranform
+
+home_data_tranform.corr()
+
+home_data_tranform = home_data_tranform.dropna(subset=['Base Price']).reset_index().drop(columns='index')
+home_data_tranform['Normalised Deal Saving'] = home_data_tranform['Normalised Deal Saving'].fillna(0.0)
+# home_data_tranform['Rating'] = home_data_tranform['Rating'].fillna(0.0)  # investigate filling 0 vs ave
+home_data_tranform.info()
+
+y = home_data_tranform['Department Rank']
+train_x, valid_x, train_y, valid_y = train_test_split(home_data_tranform.drop(columns = ['Department Rank']), y, test_size=0.2, shuffle=True, random_state=1)  # , stratify=y
+
+# Create the LightGBM data containers
+# Make sure that cat_features are used
+train_data=lgb.Dataset(train_x,label=train_y, categorical_feature = cat_features)
+valid_data=lgb.Dataset(valid_x,label=valid_y, categorical_feature = cat_features)
+
+
+params = {
+    'objective' : 'multiclass',
+    'num_class' : 6,
+    'num_leaves' : 6,
+    'max_depth': 15,
+    'learning_rate' : 0.02,
+    # 'feature_fraction' : 0.6,
+    'verbosity' : -1
+}
+
+# params = {
+#     'task': 'train', 
+#     'boosting': 'gbdt',
+#     'objective': 'regression',
+#     'num_leaves': 10,
+#     'learnnig_rage': 0.05,
+#     'metric': 'mse',  # {'l2','l1'},
+#     'verbose': -1
+# }
+
+#%% Train model on selected parameters and number of iterations
+lgbm = lgb.train(params,
+                 train_data,
+                 2500,
+                 valid_sets=valid_data,
+                 early_stopping_rounds= 30,
+                 verbose_eval= 10
+                 )
+
+
+
+# Take a row "n" from home_data_tranform (excludes the first column) and call it 'test'
+home_data_tranform_feats = home_data_tranform.drop(columns=['Department Rank'])
+n = 0
+test = home_data_tranform_feats.iloc[n]
+
+# Predict a new value using lgbm for 'test'
+new_value = lgbm.predict(test)
+
+# Produce a figure which compares the value of each feature from 'test' to the average value in home_data_tranform
+avg = home_data_tranform_feats.mean()
+top_100k_avg = home_data_tranform[home_data_tranform['Department Rank'] == 0].drop(columns=['Department Rank']).mean()
+min_val = home_data_tranform_feats.min()
+max_val = home_data_tranform_feats.max()
+test_norm = (test - min_val) / (max_val - min_val)
+avg_norm = (avg - min_val) / (max_val - min_val)
+top_100k_avg_norm = (top_100k_avg - min_val) / (max_val - min_val)
+
+avg_norm
+
+fig, ax = plt.subplots()
+index = np.arange(len(test_norm.index))
+bar_width = 0.25
+opacity = 0.8
+
+test_plt = ax.bar(index, test_norm.values, bar_width,
+                alpha=opacity, color='b',
+                label='Test')
+
+avg_plt = ax.bar(index + bar_width, avg_norm.values, bar_width,
+                alpha=opacity, color='g',
+                label='Average')
+
+top_avg_plt = ax.bar(index + 2*bar_width, top_100k_avg_norm.values, bar_width,
+                alpha=opacity, color='r',
+                label='Top 100k Average')
+
+ax.set_xlabel('Features')
+ax.set_ylabel('Normalized Values')
+ax.set_title('Normalized Values by Feature')
+ax.set_xticks(index + bar_width / 2)
+ax.set_xticklabels(test_norm.index, rotation=90)
+ax.legend()
+
+plt.tight_layout()
+plt.show()
+
+avg
+
+test
+
+pred_y = lgbm.predict(valid_x)
+
+pred_y_vals = [np.argmax(line) for line in pred_y]
+precision_score(pred_y_vals,valid_y.values,average=None)
+
+pred_y_vals = [np.argmax(line) for line in pred_y]
+precision_score(pred_y_vals,valid_y.values,average=None)
+
+
+
+log_loss(valid_y.values, pred_y)
+
+valid_y.values
+
+np.array(pred_y_vals)
+
+print('log diff mse 0.976 to 0.994')
+
+print('cat logloss 1.464 with max eff ad, 1.470 without')
+
+print('corr log diff mse 1.971 to 1.931 and just eff ad was 1.895, max eff ad was 1.869')
+
+print('not log rmse with eff ad 990094 without 983171, 974880 with max eff, 985192 min')
+
+print("ran again and got 764596 with 'Listing Age', 'n Ratings', 'Rating'")
+
+print('outliers?')
+
+lgb.plot_importance(lgbm)
